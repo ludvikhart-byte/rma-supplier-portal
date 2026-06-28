@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RMA Portál — Bonami</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green: #00a651;
+      --green-dark: #008c44;
+      --blue: #1a6dd4;
+      --orange: #f5820d;
+      --border: #e8e8e8;
+      --bg: #f7f7f7;
+      --text: #1a1a1a;
+      --muted: #888;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    header {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-logo { font-size: 15px; font-weight: 700; color: var(--text); }
+    .header-sep { color: #ddd; font-size: 18px; font-weight: 200; }
+    .header-supplier { font-size: 14px; color: var(--muted); }
+    .typ-badge {
+      padding: 3px 9px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .typ-badge.dodavatel { background: #e3f0ff; color: #1a5dbf; }
+    .typ-badge.prepravce { background: #fff3e0; color: #c45c00; }
+
+    .container { max-width: 920px; margin: 0 auto; padding: 24px 16px 120px; }
+
+    /* States */
+    .state-box { display: none; text-align: center; padding: 80px 24px; }
+    .state-box.active { display: block; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #eee; border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .state-icon { font-size: 44px; margin-bottom: 14px; }
+    .state-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    .state-text { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+    /* KPI row */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 680px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .kpi-grid .kpi-wide { grid-column: 1 / -1; }
+    }
+    .kpi-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .kpi-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+    .kpi-value {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+    }
+    .kpi-value.accent { color: var(--green); }
+
+    /* Section label */
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+
+    /* Claim card */
+    .claim-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      overflow: hidden;
+    }
+
+    .claim-header {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.1s;
+    }
+    .claim-header:hover { background: #fafafa; }
+
+    .claim-id {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      flex-shrink: 0;
+      color: var(--text);
+    }
+    .claim-badges { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-blue { background: #e3f0ff; color: #1a5dbf; }
+    .badge-green { background: #e6f7ee; color: #1b7a44; }
+    .badge-orange { background: #fff3e0; color: #c45c00; }
+    .badge-red { background: #ffecec; color: #b71c1c; }
+    .badge-gray { background: #f0f0f0; color: #555; }
+
+    .claim-meta { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+    .claim-chevron { font-size: 11px; color: #ccc; transition: transform 0.2s; flex-shrink: 0; }
+    .claim-card.open .claim-chevron { transform: rotate(180deg); }
+
+    .claim-body {
+      display: none;
+      padding: 0 18px 18px;
+      border-top: 1px solid #f0f0f0;
+    }
+    .claim-card.open .claim-body { display: block; }
+
+    /* Info grid */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px 20px;
+      margin: 16px 0;
+    }
+    @media (max-width: 560px) { .info-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .info-item {}
+    .info-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 3px;
+    }
+    .info-value { font-size: 14px; color: var(--text); line-height: 1.4; }
+    .info-value.big { font-size: 16px; font-weight: 700; }
+    .info-value.green { color: var(--green); font-weight: 700; }
+    .info-value.dim { color: var(--muted); font-style: italic; }
+
+    /* Update / description box */
+    .text-box {
+      font-size: 13px;
+      color: #444;
+      line-height: 1.65;
+      padding: 10px 14px;
+      background: #fafafa;
+      border-radius: 8px;
+      border-left: 3px solid #e8e8e8;
+      margin-bottom: 14px;
+    }
+    .text-box-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 4px;
+    }
+
+    /* Comment */
+    .comment-field { margin-top: 14px; }
+    .comment-field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 6px;
+    }
+    .comment-field textarea {
+      width: 100%;
+      border: 1.5px solid #e4e4e4;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: inherit;
+      line-height: 1.5;
+      resize: vertical;
+      min-height: 68px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      background: #fff;
+      color: var(--text);
+    }
+    .comment-field textarea:focus {
+      outline: none;
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(0,166,81,0.1);
+    }
+
+    /* Items section */
+    .items-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid #f0f0f0;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      user-select: none;
+      transition: color 0.1s;
+    }
+    .items-toggle:hover { color: var(--text); }
+    .items-chevron { font-size: 10px; transition: transform 0.2s; }
+    .items-toggle.open .items-chevron { transform: rotate(180deg); }
+
+    .items-list {
+      display: none;
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .items-list.open { display: block; }
+
+    .item-row {
+      padding: 12px 14px;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    .item-row:last-child { border-bottom: none; }
+    .item-row-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .item-left {}
+    .item-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .item-damage { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .item-stav { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .item-right { text-align: right; flex-shrink: 0; }
+    .item-amount-label { font-size: 10px; color: var(--muted); }
+    .item-amount { font-size: 13px; font-weight: 700; color: var(--text); }
+    .item-amount.returned { color: var(--green); }
+
+    .item-desc {
+      font-size: 12px;
+      color: #555;
+      line-height: 1.5;
+      padding: 7px 10px;
+      background: #fafafa;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .item-comment label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 4px;
+    }
+    .item-comment textarea {
+      width: 100%;
+      border: 1.5px solid #e4e4e4;
+      border-radius: 6px;
+      padding: 7px 11px;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 52px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      background: #fff;
+      color: var(--text);
+    }
+    .item-comment textarea:focus {
+      outline: none;
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(0,166,81,0.1);
+    }
+
+    /* Empty claims */
+    .empty-box {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 60px 24px;
+      text-align: center;
+    }
+    .empty-icon { font-size: 36px; margin-bottom: 12px; }
+    .empty-title { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+    .empty-text { font-size: 13px; color: var(--muted); }
+
+    /* Submit bar */
+    .submit-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 14px;
+      z-index: 50;
+    }
+    .submit-status {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .btn {
+      padding: 12px 32px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+    }
+    .btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+    .btn:active:not(:disabled) { transform: scale(0.98); box-shadow: none; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary { background: var(--green); color: #fff; min-width: 180px; }
+
+    .page-footer { text-align: center; margin-top: 40px; font-size: 12px; color: #ccc; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <span class="header-logo">Bonami RMA</span>
+    <span class="header-sep">|</span>
+    <span class="header-supplier" id="header-supplier">Portál</span>
+  </div>
+  <span id="header-typ-badge"></span>
+</header>
+
+<div class="container">
+  <div id="state-invalid" class="state-box">
+    <div class="state-icon">🔗</div>
+    <div class="state-title">Neplatný odkaz</div>
+    <div class="state-text">Tento odkaz není platný. Kontaktujte Bonami tým.</div>
+  </div>
+
+  <div id="state-loading" class="state-box active">
+    <div class="spinner"></div>
+    <div class="state-text">Načítám data…</div>
+  </div>
+
+  <div id="state-error" class="state-box">
+    <div class="state-icon">⚠️</div>
+    <div class="state-title">Chyba načítání</div>
+    <div class="state-text" id="error-detail">Nepodařilo se načíst data. Zkuste stránku obnovit.</div>
+  </div>
+
+  <div id="state-done" class="state-box">
+    <div class="state-icon">✅</div>
+    <div class="state-title">Uloženo</div>
+    <div class="state-text">Vaše komentáře byly zaznamenány. Děkujeme.</div>
+  </div>
+
+  <div id="main-content" style="display:none">
+    <div class="kpi-grid" id="kpi-grid"></div>
+
+    <div class="section-label" id="claims-section-label">Aktivní claimy</div>
+    <div id="claims-container"></div>
+
+    <div class="page-footer">Bonami RMA · tento odkaz je určen pouze pro vás</div>
+  </div>
+</div>
+
+<div class="submit-bar" id="submit-bar" style="display:none">
+  <span class="submit-status" id="submit-status"></span>
+  <button class="btn btn-primary" id="btn-submit">Uložit komentáře</button>
+</div>
+
+<script>
+  // ─── CONFIG ────────────────────────────────────────────────────────────────
+  const N8N_GET_URL   = 'https://n8n.bonami.cz/webhook/supplier-portal-read';
+  const N8N_WRITE_URL = 'https://n8n.bonami.cz/webhook/supplier-portal-write';
+  const SUPPLIER_TOKEN = 'supplier-bonami-2026';
+  // ───────────────────────────────────────────────────────────────────────────
+
+  const params     = new URLSearchParams(window.location.search);
+  const supplierId = params.get('supplier_id');
+
+  // Track initial comment state to show "unsaved changes"
+  let initialComments = {};
+  let supplierTyp = 'Dodavatel';
+
+  function show(id) {
+    ['state-invalid','state-loading','state-error','state-done','main-content']
+      .forEach(s => {
+        const el = document.getElementById(s);
+        el.style.display = s === id ? '' : 'none';
+        if (el.classList.contains('state-box')) el.classList.toggle('active', s === id);
+      });
+  }
+
+  if (!supplierId) { show('state-invalid'); }
+  else { loadData(); }
+
+  async function loadData() {
+    show('state-loading');
+    try {
+      const res = await fetch(`${N8N_GET_URL}?supplier_id=${encodeURIComponent(supplierId)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data.supplier) throw new Error('Dodavatel nenalezen');
+      render(data);
+    } catch(e) {
+      document.getElementById('error-detail').textContent = e.message || 'Nepodařilo se načíst data.';
+      show('state-error');
+    }
+  }
+
+  function render(data) {
+    const supplier = data.supplier || {};
+    supplierTyp = supplier.typ || 'Dodavatel';
+    const isPrepravce = supplierTyp === 'Přepravce';
+
+    // Header
+    document.getElementById('header-supplier').textContent = supplier.name || '';
+    const typBadge = document.getElementById('header-typ-badge');
+    typBadge.className = 'typ-badge ' + (isPrepravce ? 'prepravce' : 'dodavatel');
+    typBadge.textContent = supplierTyp;
+
+    // KPIs
+    const kpis = supplier.kpis || {};
+    const kpiGrid = document.getElementById('kpi-grid');
+    kpiGrid.innerHTML = kpiCard('Otevřené claimy', kpis.pocet_otevrenych ?? '—')
+      + kpiCard('Uzavřené claimy', kpis.pocet_uzavrenych ?? '—')
+      + kpiCard('Aktivní claimy', kpis.pocet_aktivnich ?? '—')
+      + kpiCard('Aktivní položky', kpis.pocet_aktivnich_polozek ?? '—')
+      + kpiCard('Požadováno celkem', fmt(kpis.pozadovano_rollup) + ' Kč', 'accent kpi-wide');
+
+    // Claims
+    const claims = data.claims || [];
+    const container = document.getElementById('claims-container');
+    container.innerHTML = '';
+
+    if (claims.length === 0) {
+      container.innerHTML = `
+        <div class="empty-box">
+          <div class="empty-icon">🎉</div>
+          <div class="empty-title">Žádné aktivní claimy</div>
+          <div class="empty-text">Momentálně nemáte žádné otevřené reklamace.</div>
+        </div>`;
+      document.getElementById('submit-bar').style.display = 'none';
+    } else {
+      claims.forEach((claim, i) => {
+        const card = buildClaimCard(claim, isPrepravce);
+        container.appendChild(card);
+        // Open first claim by default
+        if (i === 0) card.classList.add('open');
+      });
+      document.getElementById('submit-bar').style.display = 'flex';
+    }
+
+    show('main-content');
+    document.getElementById('main-content').style.display = '';
+
+    // Snapshot initial state after render
+    snapshotComments();
+    updateSubmitStatus();
+  }
+
+  function kpiCard(label, value, valueClass = '') {
+    return `
+      <div class="kpi-card">
+        <div class="kpi-label">${esc(label)}</div>
+        <div class="kpi-value ${valueClass}">${esc(String(value))}</div>
+      </div>`;
+  }
+
+  function buildClaimCard(claim, isPrepravce) {
+    const card = document.createElement('div');
+    card.className = 'claim-card';
+    card.dataset.id = claim.id;
+
+    const stavReseni = isPrepravce ? claim.stav_reseni_prepravce : claim.stav_reseni_dodavatel;
+    const pozadovano = isPrepravce ? claim.pozadovano_prepravce : claim.pozadovano_dodavatel;
+    const vraceno    = isPrepravce ? claim.vraceno_prepravce    : claim.vraceno_dodavatel;
+    const komentar   = isPrepravce ? claim.komentar_prepravce   : claim.komentar_dodavatel;
+
+    const statusBadge = badgeForStatus(claim.status);
+    const stavBadge   = stavReseni ? badgeForStav(stavReseni) : '';
+
+    const dni = claim.dni_od_vytvoreni != null ? `${claim.dni_od_vytvoreni} dní` : '';
+
+    card.innerHTML = `
+      <div class="claim-header">
+        <span class="claim-id">${esc(claim.claim_id || claim.id)}</span>
+        <div class="claim-badges">
+          ${statusBadge}
+          ${stavBadge}
+        </div>
+        ${dni ? `<span class="claim-meta">${esc(dni)}</span>` : ''}
+        <span class="claim-chevron">▼</span>
+      </div>
+      <div class="claim-body">
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Požadováno</div>
+            <div class="info-value big">${fmt(pozadovano)} Kč</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Vráceno</div>
+            <div class="info-value big green">${fmt(vraceno)} Kč</div>
+          </div>
+          ${claim.status ? `
+          <div class="info-item">
+            <div class="info-label">Stav</div>
+            <div class="info-value">${esc(claim.status)}</div>
+          </div>` : ''}
+          ${stavReseni ? `
+          <div class="info-item">
+            <div class="info-label">Stav řešení</div>
+            <div class="info-value">${esc(stavReseni)}</div>
+          </div>` : ''}
+        </div>
+
+        ${claim.popis_reseni ? `
+          <div class="text-box-label">Popis řešení</div>
+          <div class="text-box">${esc(claim.popis_reseni)}</div>
+        ` : ''}
+        ${claim.posledni_update ? `
+          <div class="text-box-label">Poslední update</div>
+          <div class="text-box">${esc(claim.posledni_update)}</div>
+        ` : ''}
+
+        <div class="comment-field">
+          <label>Váš komentář</label>
+          <textarea id="claim-comment-${claim.id}"
+            data-claim-id="${claim.id}"
+            placeholder="Napište komentář nebo dotaz k tomuto claimu…">${esc(komentar || '')}</textarea>
+        </div>
+
+        ${buildItemsSection(claim, isPrepravce)}
+      </div>
+    `;
+
+    // Toggle open/close
+    card.querySelector('.claim-header').addEventListener('click', () => {
+      card.classList.toggle('open');
+    });
+
+    // Items toggle
+    const itemsToggle = card.querySelector('.items-toggle');
+    const itemsList   = card.querySelector('.items-list');
+    if (itemsToggle && itemsList) {
+      itemsToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = itemsList.classList.toggle('open');
+        itemsToggle.classList.toggle('open', open);
+      });
+    }
+
+    // Track comment changes
+    card.querySelectorAll('textarea').forEach(ta => {
+      ta.addEventListener('input', updateSubmitStatus);
+    });
+
+    return card;
+  }
+
+  function buildItemsSection(claim, isPrepravce) {
+    const items = claim.items || [];
+    if (items.length === 0) return '';
+
+    const rows = items.map(item => buildItemRow(item, isPrepravce)).join('');
+
+    return `
+      <div class="items-toggle">
+        <span class="items-chevron">▶</span>
+        Položky (${items.length})
+      </div>
+      <div class="items-list">
+        ${rows}
+      </div>
+    `;
+  }
+
+  function buildItemRow(item, isPrepravce) {
+    const pozadovano = isPrepravce ? item.pozadovano_prepravce : item.pozadovano_dodavatel;
+    const vraceno    = isPrepravce ? item.vraceno_prepravce    : item.vraceno_dodavatel;
+    const stavReseni = isPrepravce ? item.stav_reseni_prepravce : item.stav_reseni_dodavatel;
+    const komentar   = isPrepravce ? item.komentar_prepravce   : item.komentar_dodavatel;
+
+    const damageTypes = (item.damage_types || []).join(', ');
+
+    return `
+      <div class="item-row">
+        <div class="item-row-top">
+          <div class="item-left">
+            <div class="item-name">${esc(item.nazev || item.id_polozky || item.id)}</div>
+            ${damageTypes ? `<div class="item-damage">${esc(damageTypes)}</div>` : ''}
+            ${stavReseni ? `<div class="item-stav">${esc(stavReseni)}</div>` : ''}
+          </div>
+          <div class="item-right">
+            <div class="item-amount-label">Požadováno / Vráceno</div>
+            <div class="item-amount">${fmt(pozadovano)} Kč</div>
+            ${(vraceno != null && vraceno > 0) ? `<div class="item-amount returned">↩ ${fmt(vraceno)} Kč</div>` : ''}
+          </div>
+        </div>
+        ${item.popis_poskozeni ? `<div class="item-desc">${esc(item.popis_poskozeni)}</div>` : ''}
+        <div class="item-comment">
+          <label>Komentář k položce</label>
+          <textarea id="item-comment-${item.id}"
+            data-item-id="${item.id}"
+            placeholder="Poznámka k této položce…">${esc(komentar || '')}</textarea>
+        </div>
+      </div>
+    `;
+  }
+
+  function badgeForStatus(status) {
+    if (!status) return '';
+    const map = {
+      'V řešení': 'badge-blue', 'Odesláno': 'badge-blue',
+      'Hotovo': 'badge-green', 'Uzavřeno': 'badge-green', 'Vyřešeno': 'badge-green',
+      'Pozastaveno': 'badge-orange', 'Čeká': 'badge-orange',
+      'Zamítnuto': 'badge-red', 'Odmítnuto': 'badge-red',
+    };
+    const cls = map[status] || 'badge-gray';
+    return `<span class="badge ${cls}">${esc(status)}</span>`;
+  }
+
+  function badgeForStav(stav) {
+    if (!stav) return '';
+    const map = {
+      'Uhrazeno': 'badge-green', 'Vyřešeno': 'badge-green',
+      'Čeká na schválení': 'badge-orange', 'Čeká': 'badge-orange',
+      'Zamítnuto': 'badge-red', 'Neřešeno': 'badge-red',
+    };
+    const cls = map[stav] || 'badge-gray';
+    return `<span class="badge ${cls}">${esc(stav)}</span>`;
+  }
+
+  // ─── COMMENTS STATE ────────────────────────────────────────────────────────
+
+  function snapshotComments() {
+    initialComments = {};
+    document.querySelectorAll('textarea[data-claim-id], textarea[data-item-id]').forEach(ta => {
+      initialComments[ta.id] = ta.value;
+    });
+  }
+
+  function hasChanges() {
+    return Array.from(document.querySelectorAll('textarea[data-claim-id], textarea[data-item-id]'))
+      .some(ta => ta.value !== initialComments[ta.id]);
+  }
+
+  function updateSubmitStatus() {
+    const changed = hasChanges();
+    document.getElementById('submit-status').textContent = changed ? 'Máte neuložené změny' : '';
+    document.getElementById('btn-submit').disabled = !changed;
+  }
+
+  // ─── SUBMIT ────────────────────────────────────────────────────────────────
+
+  document.getElementById('btn-submit')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-submit');
+    btn.disabled = true;
+    btn.textContent = 'Ukládám…';
+
+    const claimComments = [];
+    document.querySelectorAll('textarea[data-claim-id]').forEach(ta => {
+      claimComments.push({ id: ta.dataset.claimId, comment: ta.value });
+    });
+
+    const itemComments = [];
+    document.querySelectorAll('textarea[data-item-id]').forEach(ta => {
+      itemComments.push({ id: ta.dataset.itemId, comment: ta.value });
+    });
+
+    const payload = {
+      supplier_id: supplierId,
+      typ: supplierTyp,
+      claim_comments: claimComments,
+      item_comments: itemComments
+    };
+
+    try {
+      const res = await fetch(N8N_WRITE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Supplier-Token': SUPPLIER_TOKEN
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      show('state-done');
+    } catch(e) {
+      btn.disabled = false;
+      btn.textContent = 'Uložit komentáře';
+      alert('Uložení se nezdařilo: ' + (e.message || 'Zkuste to znovu.'));
+    }
+  });
+
+  // ─── HELPERS ───────────────────────────────────────────────────────────────
+
+  function fmt(n) {
+    if (n == null || n === '' || n === 0) return '0';
+    return Math.round(Number(n)).toLocaleString('cs-CZ');
+  }
+
+  function esc(str) {
+    return String(str ?? '')
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/\n/g,'<br>');
+  }
+</script>
+</body>
+</html>
