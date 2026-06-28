@@ -375,6 +375,97 @@
     .btn-primary { background: var(--green); color: #fff; min-width: 180px; }
 
     .page-footer { text-align: center; margin-top: 40px; font-size: 12px; color: #ccc; }
+
+    /* Tab nav */
+    .tab-nav {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 20px;
+    }
+    .tab-btn {
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      border: none;
+      background: none;
+      font-family: inherit;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--green); border-bottom-color: var(--green); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Items flat table */
+    .items-table-wrap {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .items-table th {
+      text-align: left;
+      padding: 10px 12px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      background: #fafafa;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .items-table th.sortable { cursor: pointer; user-select: none; }
+    .items-table th.sortable:hover { color: var(--text); }
+    .items-table th .sort-icon { margin-left: 4px; opacity: 0.4; font-size: 9px; }
+    .items-table th.sort-asc .sort-icon::after { content: '▲'; opacity: 1; }
+    .items-table th.sort-desc .sort-icon::after { content: '▼'; opacity: 1; }
+    .items-table th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
+    .items-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #f5f5f5;
+      vertical-align: top;
+    }
+    .items-table tr:last-child td { border-bottom: none; }
+    .items-table tr:hover td { background: #fafafa; }
+    .cell-mono { font-family: 'SF Mono', 'Consolas', monospace; font-size: 11px; color: var(--muted); }
+    .cell-name { font-weight: 600; color: var(--text); }
+    .cell-damage { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .cell-amt { font-weight: 700; color: var(--text); white-space: nowrap; }
+    .cell-amt.green { color: var(--green); }
+    .cell-comment textarea {
+      width: 100%;
+      min-width: 160px;
+      border: 1.5px solid #e4e4e4;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 44px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      background: #fff;
+      color: var(--text);
+    }
+    .cell-comment textarea:focus {
+      outline: none;
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(0,166,81,0.1);
+    }
+    @media (max-width: 680px) {
+      .items-table { display: block; overflow-x: auto; }
+    }
   </style>
 </head>
 <body>
@@ -415,8 +506,33 @@
   <div id="main-content" style="display:none">
     <div class="kpi-grid" id="kpi-grid"></div>
 
-    <div class="section-label" id="claims-section-label">Aktivní claimy</div>
-    <div id="claims-container"></div>
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="claims">Claimy</button>
+      <button class="tab-btn" data-tab="polozky">Položky</button>
+    </nav>
+
+    <div id="tab-claims" class="tab-panel active">
+      <div id="claims-container"></div>
+    </div>
+
+    <div id="tab-polozky" class="tab-panel">
+      <div class="items-table-wrap">
+        <table class="items-table" id="polozky-table">
+          <thead>
+            <tr>
+              <th class="sortable" data-col="claim_id">Claim <span class="sort-icon"></span></th>
+              <th class="sortable" data-col="nazev">Produkt <span class="sort-icon"></span></th>
+              <th class="sortable" data-col="damage">Typ poškození <span class="sort-icon"></span></th>
+              <th class="sortable" data-col="pozadovano">Požadováno <span class="sort-icon"></span></th>
+              <th class="sortable" data-col="vraceno">Vráceno <span class="sort-icon"></span></th>
+              <th class="sortable" data-col="stav">Stav řešení <span class="sort-icon"></span></th>
+              <th>Komentář</th>
+            </tr>
+          </thead>
+          <tbody id="polozky-tbody"></tbody>
+        </table>
+      </div>
+    </div>
 
     <div class="page-footer">Bonami RMA · tento odkaz je určen pouze pro vás</div>
   </div>
@@ -512,6 +628,9 @@
 
     show('main-content');
     document.getElementById('main-content').style.display = '';
+
+    // Build flat položky table
+    buildFlatItems(claims, isPrepravce);
 
     // Snapshot initial state after render
     snapshotComments();
@@ -751,6 +870,93 @@
       alert('Uložení se nezdařilo: ' + (e.message || 'Zkuste to znovu.'));
     }
   });
+
+  // ─── TABS ──────────────────────────────────────────────────────────────────
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ─── FLAT POLOŽKY TABLE ────────────────────────────────────────────────────
+
+  let flatItems = []; // { claimId, claimLabel, ...item fields }
+  let sortCol = null, sortDir = 1;
+
+  function buildFlatItems(claims, isPrepravce) {
+    flatItems = [];
+    claims.forEach(claim => {
+      (claim.items || []).forEach(item => {
+        flatItems.push({
+          claimId: claim.id,
+          claimLabel: claim.claim_id || claim.id,
+          itemId: item.id,
+          nazev: item.nazev || item.id_polozky || item.id,
+          damage: (item.damage_types || []).join(', '),
+          pozadovano: isPrepravce ? item.pozadovano_prepravce : item.pozadovano_dodavatel,
+          vraceno: isPrepravce ? item.vraceno_prepravce : item.vraceno_dodavatel,
+          stav: isPrepravce ? item.stav_reseni_prepravce : item.stav_reseni_dodavatel,
+          komentar: isPrepravce ? item.komentar_prepravce : item.komentar_dodavatel,
+        });
+      });
+    });
+    renderFlatTable();
+  }
+
+  function renderFlatTable() {
+    const tbody = document.getElementById('polozky-tbody');
+    if (!tbody) return;
+    let rows = [...flatItems];
+    if (sortCol) {
+      rows.sort((a, b) => {
+        const av = a[sortCol] ?? '';
+        const bv = b[sortCol] ?? '';
+        if (typeof av === 'number' || typeof bv === 'number') {
+          return ((Number(av) || 0) - (Number(bv) || 0)) * sortDir;
+        }
+        return String(av).localeCompare(String(bv), 'cs') * sortDir;
+      });
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td><span class="cell-mono">${esc(r.claimLabel)}</span></td>
+        <td><div class="cell-name">${esc(r.nazev)}</div></td>
+        <td>${esc(r.damage)}</td>
+        <td class="cell-amt">${fmt(r.pozadovano)} Kč</td>
+        <td class="cell-amt green">${r.vraceno > 0 ? fmt(r.vraceno) + ' Kč' : '—'}</td>
+        <td>${r.stav ? badgeForStav(r.stav) : '—'}</td>
+        <td class="cell-comment">
+          <textarea data-item-id="${r.itemId}" data-list-view="1"
+            placeholder="Poznámka…">${esc(r.komentar || '')}</textarea>
+        </td>
+      </tr>`).join('');
+
+    // Sync list-view textareas from claim-view (in case user typed there first)
+    document.querySelectorAll('textarea[data-item-id][data-list-view]').forEach(ta => {
+      const claimTa = document.querySelector(`textarea[data-item-id="${ta.dataset.itemId}"]:not([data-list-view])`);
+      if (claimTa && claimTa.value) ta.value = claimTa.value;
+      ta.addEventListener('input', () => {
+        // Sync back to claim-view textarea
+        const paired = document.querySelector(`textarea[data-item-id="${ta.dataset.itemId}"]:not([data-list-view])`);
+        if (paired) paired.value = ta.value;
+        updateSubmitStatus();
+      });
+    });
+
+    // Sortable headers
+    document.querySelectorAll('#polozky-table th.sortable').forEach(th => {
+      th.classList.remove('sort-asc', 'sort-desc');
+      if (th.dataset.col === sortCol) th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+      th.onclick = () => {
+        if (sortCol === th.dataset.col) { sortDir *= -1; } else { sortCol = th.dataset.col; sortDir = 1; }
+        renderFlatTable();
+      };
+    });
+  }
 
   // ─── HELPERS ───────────────────────────────────────────────────────────────
 
