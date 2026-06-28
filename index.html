@@ -114,6 +114,50 @@
       margin-bottom: 12px;
     }
 
+    /* Filter bar */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .filter-search {
+      flex: 1;
+      min-width: 180px;
+      padding: 8px 12px 8px 34px;
+      border: 1.5px solid #e4e4e4;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%23aaa' stroke-width='2' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 11px center;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      color: var(--text);
+    }
+    .filter-search:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(0,166,81,0.1); }
+    .filter-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+    .filter-chip {
+      padding: 5px 11px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1.5px solid #e4e4e4;
+      background: #fff;
+      color: var(--muted);
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+    .filter-chip:hover { border-color: #bbb; color: var(--text); }
+    .filter-chip.active { background: var(--green); border-color: var(--green); color: #fff; }
+    .filter-count { font-size: 12px; color: var(--muted); margin-left: 2px; white-space: nowrap; }
+    .filter-no-results {
+      background: #fff; border: 1px solid var(--border); border-radius: 12px;
+      padding: 48px 24px; text-align: center; display: none;
+    }
+    .filter-no-results.visible { display: block; }
+    .filter-no-results-text { font-size: 14px; color: var(--muted); }
+
     /* Claim card */
     .claim-card {
       background: #fff;
@@ -590,7 +634,15 @@
     </nav>
 
     <div id="tab-claims" class="tab-panel active">
+      <div class="filter-bar" id="filter-bar" style="display:none">
+        <input class="filter-search" id="filter-search" type="search" placeholder="Hledat claim, produkt, popis…">
+        <div class="filter-chips" id="filter-chips"></div>
+        <span class="filter-count" id="filter-count"></span>
+      </div>
       <div id="claims-container"></div>
+      <div class="filter-no-results" id="filter-no-results">
+        <div class="filter-no-results-text">Žádné claimy neodpovídají filtru.</div>
+      </div>
     </div>
 
     <div id="tab-polozky" class="tab-panel">
@@ -719,6 +771,9 @@
 
     // Build flat položky table
     buildFlatItems(claims, isPrepravce);
+
+    // Init claim filters
+    initFilters(claims, isPrepravce);
 
     // Snapshot initial state after render
     snapshotComments();
@@ -969,6 +1024,64 @@
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
     });
   });
+
+  // ─── CLAIM FILTERING ───────────────────────────────────────────────────────
+
+  let allClaims = [];
+  let activeStatusFilter = null;
+
+  function initFilters(claims, isPrepravce) {
+    allClaims = claims;
+
+    // Collect unique statuses
+    const statuses = [...new Set(claims.map(c => c.status).filter(Boolean))];
+    const chipsEl = document.getElementById('filter-chips');
+    chipsEl.innerHTML = statuses.map(s =>
+      `<button class="filter-chip" data-status="${esc(s)}">${esc(s)}</button>`
+    ).join('');
+
+    chipsEl.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const val = chip.dataset.status;
+        activeStatusFilter = activeStatusFilter === val ? null : val;
+        chipsEl.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+        if (activeStatusFilter) chip.classList.add('active');
+        applyFilters(isPrepravce);
+      });
+    });
+
+    document.getElementById('filter-search').addEventListener('input', () => applyFilters(isPrepravce));
+    document.getElementById('filter-bar').style.display = claims.length > 0 ? 'flex' : 'none';
+    applyFilters(isPrepravce);
+  }
+
+  function applyFilters(isPrepravce) {
+    const q = (document.getElementById('filter-search').value || '').toLowerCase().trim();
+
+    const visible = allClaims.filter(claim => {
+      if (activeStatusFilter && claim.status !== activeStatusFilter) return false;
+      if (!q) return true;
+      // Fulltext: search claim id, status, stav, popis, item names, damage types
+      const haystack = [
+        claim.claim_id, claim.status,
+        claim.stav_reseni_dodavatel, claim.stav_reseni_prepravce,
+        claim.popis_reseni, claim.posledni_update,
+        ...(claim.items || []).flatMap(i => [i.nazev, i.id_polozky, ...(i.damage_types || []), i.popis_poskozeni])
+      ].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+
+    // Show/hide claim cards
+    document.querySelectorAll('.claim-card').forEach(card => {
+      const match = visible.some(c => c.id === card.dataset.id);
+      card.style.display = match ? '' : 'none';
+    });
+
+    const count = visible.length;
+    const total = allClaims.length;
+    document.getElementById('filter-count').textContent = count < total ? `${count} / ${total}` : `${total}`;
+    document.getElementById('filter-no-results').classList.toggle('visible', count === 0);
+  }
 
   // ─── POLOŽKY LIST + DRAWER ─────────────────────────────────────────────────
 
